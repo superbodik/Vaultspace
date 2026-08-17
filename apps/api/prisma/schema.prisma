@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ShareResourceType {
+  DATA_ROOM
+  FOLDER
+  FILE
+}
+
+enum ShareMode {
+  PUBLIC_LINK
+  PERMISSIONED
+}
+
+enum ShareRole {
+  VIEWER
+  EDITOR
+}
+
+enum ActivityAction {
+  UPLOADED
+  VIEWED
+  DOWNLOADED
+  RENAMED
+  MOVED
+  DELETED
+  CREATED_FOLDER
+  SHARED
+  REVOKED_SHARE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  dataRooms    DataRoom[]
+  foldersMade  Folder[]     @relation("FolderCreatedBy")
+  filesUploaded File[]      @relation("FileUploadedBy")
+  shares       Share[]      @relation("ShareOwner")
+  shareGrants  ShareGrant[]
+  activity     ActivityEvent[]
+}
+
+model DataRoom {
+  id        String   @id @default(uuid())
+  name      String
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  folders Folder[]
+  files   File[]
+  shares  Share[]
+  activity ActivityEvent[]
+
+  @@index([ownerId])
+}
+
+model Folder {
+  id         String   @id @default(uuid())
+  name       String
+  dataRoomId String
+  dataRoom   DataRoom @relation(fields: [dataRoomId], references: [id], onDelete: Cascade)
+  parentId   String?
+  parent     Folder?  @relation("FolderChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children   Folder[] @relation("FolderChildren")
+
+  // Materialized path of ancestor folder ids, e.g. "/root-id/child-id/", used for
+  // O(1)-index subtree lookups (LIKE 'prefix%') instead of recursive queries.
+  path  String
+  depth Int    @default(0)
+
+  createdById String
+  createdBy   User   @relation("FolderCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  files  File[]
+  shares Share[]
+
+  @@index([dataRoomId, parentId])
+  @@index([path])
+}
+
+model File {
+  id       String  @id @default(uuid())
+  name     String
+  size     BigInt
+  mimeType String
+
+  storageKey      String
+  storageProvider String @default("local")
+
+  dataRoomId String
+  dataRoom   DataRoom @relation(fields: [dataRoomId], references: [id], onDelete: Cascade)
+  folderId   String?
+  folder     Folder?  @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  uploaderId String
+  uploader   User   @relation("FileUploadedBy", fields: [uploaderId], references: [id])
+
+  version  Int           @default(1)
+  versions FileVersion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shares Share[]
+
+  @@index([dataRoomId, folderId])
+}
+
+model FileVersion {
+  id         String   @id @default(uuid())
+  fileId     String
+  file       File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  version    Int
+  size       BigInt
+  mimeType   String
+  storageKey String
+  createdAt  DateTime @default(now())
+  createdById String
+
+  @@unique([fileId, version])
+}
+
+model Share {
+  id             String            @id @default(uuid())
+  resourceType   ShareResourceType
+  dataRoomId     String?
+  dataRoom       DataRoom?         @relation(fields: [dataRoomId], references: [id], onDelete: Cascade)
+  folderId       String?
+  folder         Folder?           @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  fileId         String?
+  file           File?             @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  ownerId String
+  owner   User   @relation("ShareOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  mode  ShareMode
+  token String?   @unique
+
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  grants ShareGrant[]
+  activity ActivityEvent[]
+
+  @@index([dataRoomId])
+  @@index([folderId])
+  @@index([fileId])
+  @@index([token])
+}
+
+model ShareGrant {
+  id      String    @id @default(uuid())
+  shareId String
+  share   Share     @relation(fields: [shareId], references: [id], onDelete: Cascade)
+  email   String
+  userId  String?
+  user    User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  role    ShareRole @default(VIEWER)
+
+  createdAt DateTime @default(now())
+
+  @@unique([shareId, email])
+  @@index([userId])
+}
+
+// One row per meaningful thing that happened inside a data room, kept even after
+// the resource itself is renamed or deleted (resourceName is a snapshot, and
+// resourceId is deliberately not a foreign key) so the trail stays readable.
+model ActivityEvent {
+  id         String   @id @default(uuid())
+  dataRoomId String
+  dataRoom   DataRoom @relation(fields: [dataRoomId], references: [id], onDelete: Cascade)
+
+  actorId String?
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  // set when the actor reached this resource through a share rather than as
+  // the owner — lets the feed show "via public link" / "via <owner>'s share"
+  viaShareId String?
+  viaShare   Share?  @relation(fields: [viaShareId], references: [id], onDelete: SetNull)
+
+  action       ActivityAction
+  resourceType ShareResourceType
+  resourceId   String
+  resourceName String
+
+  createdAt DateTime @default(now())
+
+  @@index([dataRoomId, createdAt])
+}
