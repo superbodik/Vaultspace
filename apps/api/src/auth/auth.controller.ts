@@ -46,7 +46,13 @@ export class AuthController {
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      // NODE_ENV=production doesn't mean HTTPS — self-hosted deployments
+      // (including this one, by default) are often plain HTTP. A `secure`
+      // cookie is silently dropped by the browser over HTTP, breaking login
+      // entirely, so this is opt-in via its own var instead of piggybacking
+      // on NODE_ENV. Set COOKIE_SECURE=true once the app is actually served
+      // over HTTPS (e.g. behind Cloudflare).
+      secure: process.env.COOKIE_SECURE === 'true',
       maxAge: COOKIE_MAX_AGE_MS,
       path: '/',
     });
