@@ -168,8 +168,18 @@ export function ShareDialog({
                       ref={linkInputRef}
                       readOnly
                       value={publicUrl ?? ''}
-                      onClick={(e) => e.currentTarget.select()}
                       onFocus={(e) => e.currentTarget.select()}
+                      onMouseDown={(e) => {
+                        // If the field is already focused (e.g. right after
+                        // clicking Copy), a plain click only moves the caret
+                        // instead of re-selecting — onFocus never re-fires
+                        // for an already-focused element. Preventing the
+                        // default mousedown behavior and selecting manually
+                        // makes every click reselect the full value.
+                        e.preventDefault();
+                        e.currentTarget.focus();
+                        e.currentTarget.select();
+                      }}
                       className="min-w-0 flex-1 truncate bg-transparent text-sm text-ink-600 outline-none dark:text-ink-300"
                     />
                     <Button size="sm" variant="secondary" onClick={handleCopy}>
