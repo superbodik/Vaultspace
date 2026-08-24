@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAddGrants, useCreateShare, useRemoveGrant, useResourceShares, useRevokeShare } from '@/hooks/use-shares';
 import type { ShareResourceType } from '@/types/api';
 import { initials } from '@/lib/format';
+import { copyToClipboard } from '@/lib/clipboard';
 import { Spinner } from '@/components/ui/page-spinner';
 
 const RESOURCE_LABEL: Record<ShareResourceType, string> = {
@@ -51,9 +52,13 @@ export function ShareDialog({
 
   const handleCopy = async () => {
     if (!publicUrl) return;
-    await navigator.clipboard.writeText(publicUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
+    const ok = await copyToClipboard(publicUrl);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } else {
+      toast.error('Could not copy — select and copy the link manually');
+    }
   };
 
   const handleInvite = async () => {

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ApiError, uploadWithProgress } from '@/lib/api';
 import { browseKey } from '@/hooks/use-browse';
+import { randomId } from '@/lib/id';
 
 export interface UploadTask {
   id: string;
@@ -77,7 +78,7 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
   const enqueue = React.useCallback(
     (files: File[], dataRoomId: string, folderId: string | null) => {
       const newTasks: UploadTask[] = files.map((file) => {
-        const id = crypto.randomUUID();
+        const id = randomId();
         fileRegistry.set(id, file);
         return {
           id,
