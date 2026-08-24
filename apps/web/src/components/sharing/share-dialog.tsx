@@ -47,12 +47,13 @@ export function ShareDialog({
 
   const [emailInput, setEmailInput] = React.useState('');
   const [copied, setCopied] = React.useState(false);
+  const linkInputRef = React.useRef<HTMLInputElement>(null);
 
   const publicUrl = publicShare ? `${window.location.origin}/share/${publicShare.token}` : null;
 
   const handleCopy = async () => {
     if (!publicUrl) return;
-    const ok = await copyToClipboard(publicUrl);
+    const ok = await copyToClipboard(publicUrl, linkInputRef.current ?? undefined);
     if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
@@ -163,13 +164,23 @@ export function ShareDialog({
                 <>
                   <div className="flex items-center gap-2 rounded-lg border border-ink-100 bg-ink-50 p-1.5 pl-3 dark:border-ink-800 dark:bg-ink-800/50">
                     <Globe2 className="size-4 shrink-0 text-ink-400" />
-                    <span className="min-w-0 flex-1 truncate text-sm text-ink-600 dark:text-ink-300">{publicUrl}</span>
+                    <input
+                      ref={linkInputRef}
+                      readOnly
+                      value={publicUrl ?? ''}
+                      onClick={(e) => e.currentTarget.select()}
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="min-w-0 flex-1 truncate bg-transparent text-sm text-ink-600 outline-none dark:text-ink-300"
+                    />
                     <Button size="sm" variant="secondary" onClick={handleCopy}>
                       {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                       {copied ? 'Copied' : 'Copy'}
                     </Button>
                   </div>
-                  <p className="text-xs text-ink-400">Anyone with this link can view — no sign-in required.</p>
+                  <p className="text-xs text-ink-400">
+                    Anyone with this link can view — no sign-in required. If the Copy button ever
+                    doesn&apos;t work, click the link above to select it and press Ctrl+C (Cmd+C on Mac).
+                  </p>
                   <button
                     type="button"
                     className="w-fit text-xs font-medium text-red-600 underline-offset-2 hover:underline"
